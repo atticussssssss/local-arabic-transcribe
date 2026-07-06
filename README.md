@@ -57,13 +57,32 @@ Open `outputs/<name>.warnings.txt` and check the flagged timestamps against the 
 The pipeline will **not** guess for you on hard/unclear audio — it points you at the risky
 spots so you can verify them.
 
-## Known limitation & the "pro" upgrade
+## Optional: vocal separation for music-heavy video
 
-The biggest weakness is **video with heavy background music/SFX**: Whisper tends to
-hallucinate over music (the classic "subscribe to the channel" filler). Commercial
-services solve this with **vocal separation**. To match that locally, add a
-[Demucs](https://github.com/adefossez/demucs) vocal-isolation stage before transcription
-(free, open-source; costs ~1–2 GB of extra downloads). PRs welcome.
+The biggest weakness of any raw Whisper run is **video with heavy background music/SFX**:
+the model tends to hallucinate over music (the classic "subscribe to the channel" filler,
+which can swallow tens of seconds of real content). Commercial services fix this with
+**vocal separation**.
+
+This pipeline has it built in as an **optional stage** using
+[Demucs](https://github.com/adefossez/demucs): it strips the background music first, then
+transcribes only the isolated vocals. In testing on a music-heavy clip this removed a
+30-second "subscribe" hallucination and recovered the real dialogue.
+
+```bash
+# one-time: install the separation extras (pulls in torch — a few hundred MB)
+pip install -r requirements-separation.txt
+# then enable the stage per run:
+SEPARATE_VOCALS=1 python3 run.py
+```
+
+Notes:
+- First run downloads the Demucs model (~80 MB) automatically.
+- `soundfile` is required so Demucs can read the audio (no system ffmpeg needed).
+- If separation fails for any reason, the pipeline logs it and **falls back to the
+  original audio** — it never crashes the run.
+- Separation only helps with *music/noise* errors. Genuinely unclear/dialectal speech
+  stays hard; those still need a human pass.
 
 ## Notes on dialect
 

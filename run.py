@@ -17,6 +17,8 @@ import sys
 import os
 import re
 import wave
+import shutil
+import subprocess
 import traceback
 import av
 from faster_whisper import WhisperModel
@@ -26,6 +28,9 @@ from faster_whisper import WhisperModel
 # 复用本地已下载的模型：  export WHISPER_MODEL=/path/to/faster-whisper-large-v3
 MODEL_PATH = os.environ.get("WHISPER_MODEL", "large-v3")
 LANGUAGE = os.environ.get("WHISPER_LANG", "ar")
+# 人声分离(可选)：背景音乐/音效重的视频建议开启，先用 Demucs 剥离人声再转录。
+# 启用：  export SEPARATE_VOCALS=1   (需已 pip install demucs，首次会下载分离模型)
+SEPARATE = os.environ.get("SEPARATE_VOCALS", "").strip().lower() not in ("", "0", "false", "no")
 BASE = os.path.dirname(os.path.abspath(__file__))
 INBOX = os.path.join(BASE, "inbox")
 OUTPUTS = os.path.join(BASE, "outputs")
@@ -56,6 +61,17 @@ def extract_wav(src, dst, rate=16000):
     out.close(); container.close()
 
 
+def separate_vocals(wav_path, workdir):
+    """用 Demucs 分离人声，返回 vocals.wav 路径；失败/无产出返回 None。"""
+    outdir = os.path.join(workdir, "_demucs")
+    os.makedirs(outdir, exist_ok=True)
+    cmd = [sys.executable, "-m", "demucs", "--two-stems=vocals", "-o", outdir, wav_path]
+    subprocess.run(cmd, check=True)
+    base = os.path.splitext(os.path.basename(wav_path))[0]
+    vocals = os.path.join(outdir, "htdemucs", base, "vocals.wav")
+    return vocals if os.path.exists(vocals) else None
+
+
 def fmt_ts(t):
     h = int(t // 3600); m = int((t % 3600) // 60); s = int(t % 60)
     ms = int(round((t - int(t)) * 1000))
@@ -74,9 +90,22 @@ def transcribe_one(model, src_path):
     print(f"[1/3] 提取音频: {name}", file=sys.stderr)
     extract_wav(src_path, wav_path)
 
+    asr_input = wav_path
+    if SEPARATE:
+        print(f"[1.5/3] 人声分离(Demucs)，首次会下载分离模型...", file=sys.stderr)
+        try:
+            vocals = separate_vocals(wav_path, OUTPUTS)
+            if vocals:
+                asr_input = vocals
+                print(f"        已用分离后人声转录", file=sys.stderr)
+            else:
+                print(f"        分离未产出，回退到原音频", file=sys.stderr)
+        except Exception as e:
+            print(f"        分离失败({e})，回退到原音频", file=sys.stderr)
+
     print(f"[2/3] 转录(large-v3, 反幻觉参数)...", file=sys.stderr)
     segments, info = model.transcribe(
-        wav_path,
+        asr_input,
         language=LANGUAGE,
         task="transcribe",
         beam_size=5,
@@ -132,6 +161,7 @@ def transcribe_one(model, src_path):
         os.remove(wav_path)
     except OSError:
         pass
+    shutil.rmtree(os.path.join(OUTPUTS, "_demucs"), ignore_errors=True)
 
     print(f"完成: {srt_path}", file=sys.stderr)
     print(f"      共 {idx} 段，告警 {len(warnings)} 处 -> {os.path.basename(warn_path)}", file=sys.stderr)
