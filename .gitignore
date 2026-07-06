@@ -30,4 +30,4 @@ models/
 .DS_Store
 
 # 个人启动器(含本机路径,不发布)
-*.command
+转录字幕.command
