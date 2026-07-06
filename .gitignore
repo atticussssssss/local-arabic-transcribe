@@ -13,7 +13,7 @@ outputs/*
 *.mkv
 *.srt
 *.txt
-!requirements.txt
+!requirements*.txt
 !README*.txt
 
 # python

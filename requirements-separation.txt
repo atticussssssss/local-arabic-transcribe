@@ -1,0 +1,4 @@
+# Optional: background-music / vocal separation stage (enable with SEPARATE_VOCALS=1).
+# Heavier install (pulls in torch). Only needed for music-heavy videos.
+demucs>=4.0
+soundfile>=0.12
