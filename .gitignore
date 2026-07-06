@@ -1,0 +1,30 @@
+# user media + generated outputs — never publish these
+inbox/*
+outputs/*
+!inbox/.gitkeep
+!outputs/.gitkeep
+
+# audio intermediates
+*.wav
+*.mp3
+*.m4a
+*.mp4
+*.mov
+*.mkv
+*.srt
+*.txt
+!requirements.txt
+!README*.txt
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# model weights (downloaded separately, multi-GB)
+models/
+*.bin
+
+# os
+.DS_Store
